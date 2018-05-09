@@ -10,16 +10,23 @@ import UIKit
 
 protocol Constriant {}
 
+struct ViewWithLeftMargin {
+    var leftMargin: CGFloat
+    var view: UIView
+    var width: CGFloat
+    var height: CGFloat? = nil
+}
+
+struct ViewWithRightMargin {
+    var rightMargin: CGFloat
+    var view: UIView
+    var width: CGFloat
+    var height: CGFloat? = nil
+}
+
 extension UIView {
     //MARK Group subviews.
-    
-    struct ViewWithLeftMargin {
-        var leftMargin: CGFloat
-        var view: UIView
-        var height: CGFloat?
-        var width: CGFloat?
-    }
-    
+
     enum Orientation {
         case horizontal, vertical
     }
@@ -27,68 +34,124 @@ extension UIView {
     enum Centering {
         case centered, latchToTopMargin
     }
+    
     //MARK IN PROGRESS
-//    func subViewsConstraints(topMargin: CGFloat, views: ViewWithLeftMargin.../*, orientation: Orientation = .horizontal*/, centering: Centering = .centered) -> [NSLayoutConstraint] {
-//        var constraints: [[NSLayoutConstraint]] = []
-//        constraints = views.map {
-//            var horizontal1: HorizontalDescriptor
-//            var horizontal2: HorizontalDescriptor
-//            var vertical1: VerticalDescriptor
-//            var vertical2: VerticalDescriptor
-//
-//            if centering == .centered {
-//
-//
-//            } else if centering == .latchToTopMargin {
-//
-//
-//
-//            }
-//
-//
-//
-//
-//            return $0.view.constraints(horizontal: horizontal1, secondHorizontal: horizontal2, vertical: vertical1, secondVertical: vertical2)
-//
-//            }
-//
-//        return constraints.flatMap {$0}
-//    }
-    
-    
-    
-    
-    
+    @discardableResult
+    func subViewsConstraints(topMargin: CGFloat, subViews: ViewWithLeftMargin..., lastSubView: ViewWithRightMargin, leftSideOfLastMargin: CGFloat, centering: Bool = true, active: Bool = true) -> [NSLayoutConstraint] {
+        translatesAutoresizingMaskIntoConstraints = false
+        var constraints: [[NSLayoutConstraint]] = []
+        var leftNeighbor: NSLayoutXAxisAnchor = leadingAnchor
+        var horizontal1 =  HorizontalDescriptor.width(1000)
+        var horizontal2 =  HorizontalDescriptor.width(1000)
+        var vertical1 =  VerticalDescriptor.height(1000)
+        var vertical2 =  VerticalDescriptor.height(1000)
+        
+        constraints = subViews.map {
+            horizontal1 = .distanceToLeft(leftNeighbor, $0.leftMargin)
+           horizontal2 = .width($0.width)
+            vertical1 = centering ? .centeredTo(self) : .distanceToTop(topAnchor, topMargin)
+            
+            if let height = $0.height {
+                vertical2 = .height(height)
+            } else {
+                vertical2 = centering ? .distanceToTop(topAnchor, topMargin) : .flexibleHeight
+            }
+            
+            if centering {
+                vertical2 = ($0.height != nil) ? .height($0.height!) : .distanceToTop(topAnchor, topMargin)
+            } else {
+                vertical2 = ($0.height != nil) ? .height($0.height!) : .flexibleHeight
+            }
+            
+            if $0.view === subViews.last!.view {
+                horizontal1 = .distanceToRight(lastSubView.view.leadingAnchor, leftSideOfLastMargin) //give second to last view flexible width
+                horizontal2 = .distanceToLeft(leftNeighbor, $0.leftMargin)
+            }
+
+            print("\n\n horizontal1 = \(horizontal1.description), horizontal2 = \(horizontal2.description), vertical1= \(vertical1.description), vertical2 = \(vertical2.description)")
+            
+            leftNeighbor = $0.view.trailingAnchor
+            
+            return $0.view.constraints(horizontal: horizontal1, secondHorizontal: horizontal2, vertical: vertical1, secondVertical: vertical2)
+            }
+        
+        var secondVertical: VerticalDescriptor
+        
+        if let height = lastSubView.height {
+            secondVertical = .height(height)
+        } else {
+            secondVertical = centering ? .distanceToTop(topAnchor, topMargin) : .flexibleHeight
+        }
+        
+        constraints.append(
+            lastSubView.view.constraints(horizontal: .width(lastSubView.width), secondHorizontal: .distanceToRight(self.trailingAnchor ,lastSubView.rightMargin), vertical: centering ? .centeredTo(self) : .distanceToTop(topAnchor, topMargin), secondVertical: secondVertical)
+        )
+        return constraints.flatMap {$0}
+    }
     
     
     
     
     //MARK TRY #2
     
-    enum HorizontalDescriptor: Constriant {
+    enum HorizontalDescriptor  {
+        var description: String {
+            switch self {
+            case .distanceToLeft(let anchor, let distance):
+                return ".distanceToLeft, anchor: \(anchor), distance: \(distance)"
+            case .centeredWith(let view):
+                return ".centeredWith, view: \(view)"
+            case .width(let width):
+                return ".width: \(width)"
+            case .distanceToRight(let anchor, let distance):
+                return ".distanceToRight, anchor: \(anchor), distance: \(distance)"
+            case .flexibleWidth:
+                return ".flexibleWidth"
+            }
+        }
         case width(CGFloat),
         distanceToLeft(NSLayoutAnchor<NSLayoutXAxisAnchor>, CGFloat),
         distanceToRight(NSLayoutAnchor<NSLayoutXAxisAnchor>, CGFloat),
-        centeredWith(UIView)
+        centeredWith(UIView),
+        flexibleWidth
+
     }
     
-    enum VerticalDescriptor: Constriant {
+    enum VerticalDescriptor {
+        var description: String {
+            switch self {
+            case .height(let height):
+                return ".height: \(height)"
+            case .distanceToTop(let anchor, let distance):
+                return ".distanceToTop, anchor: \(anchor), distance: \(distance)"
+            case .distanceToBottom(let anchor, let distance):
+                return ".distanceToBottom, anchor: \(anchor), distance: \(distance)"
+            case .centeredTo(let view):
+                return ".centeredTo, view: \(view)"
+            case .flexibleHeight:
+                return ".flexibleHeight"
+            }
+        }
         case height(CGFloat),
         distanceToTop(NSLayoutAnchor<NSLayoutYAxisAnchor>, CGFloat),
         distanceToBottom(NSLayoutAnchor<NSLayoutYAxisAnchor>, CGFloat),
-        centeredTo(UIView)
+        centeredTo(UIView),
+        flexibleHeight
     }
     
+    @discardableResult
     func constraints(horizontal: HorizontalDescriptor, secondHorizontal: HorizontalDescriptor, vertical: VerticalDescriptor, secondVertical: VerticalDescriptor, activated shouldActivate: Bool = true) -> [NSLayoutConstraint] {
+        translatesAutoresizingMaskIntoConstraints = false
         var constraints: [NSLayoutConstraint] = []
-        constraints += [horizontal, secondHorizontal].map {constraint(from: $0)}
-        constraints += [vertical, secondVertical].map {constraint(from: $0)}
+        constraints += [horizontal, secondHorizontal].compactMap {constraint(from: $0)}
+        constraints += [vertical, secondVertical].compactMap {constraint(from: $0)}
         if shouldActivate {NSLayoutConstraint.activate(constraints)}
         return constraints
     }
     
     
-    func constraint(from: HorizontalDescriptor) -> NSLayoutConstraint {
+    func constraint(from: HorizontalDescriptor) -> NSLayoutConstraint? {
+        translatesAutoresizingMaskIntoConstraints = false
         switch from {
         case .width(let width):
             return widthAnchor.constraint(equalToConstant: width)
@@ -98,10 +161,13 @@ extension UIView {
             return trailingAnchor.constraint(equalTo: anchor, constant: distance)
         case .centeredWith(let view):
             return centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        case .flexibleWidth:
+            return nil
         }
     }
     
-    func constraint(from: VerticalDescriptor) -> NSLayoutConstraint {
+    func constraint(from: VerticalDescriptor) -> NSLayoutConstraint? {
+        translatesAutoresizingMaskIntoConstraints = false
         switch from {
         case .height(let height):
             return heightAnchor.constraint(equalToConstant: height)
@@ -111,6 +177,8 @@ extension UIView {
             return bottomAnchor.constraint(equalTo: anchor, constant: distance)
         case .centeredTo(let view):
             return centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        case .flexibleHeight:
+            return nil
         }
     }
     
